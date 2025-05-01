@@ -17,38 +17,32 @@ class ClassAndFieldInfo
     use Injectable;
     use Configurable;
 
-    private static array $included_models = [];
-
-    private static array $excluded_models = [
-        'SilverStripe\\Versioned\\ChangeSetItem',
-        'DNADesign\\Elemental\\Models\\BaseElement',
+    private static array $class_and_field_inclusion_exclusion_schema = [
+        'only_include_models_with_cmseditlink' => true,
+        'only_include_models_with_records' => true,
+        'excluded_models' => [],
+        'included_models' => [],
+        'excluded_fields' => [],
+        'included_fields' => [],
+        'excluded_field_types' => [],
+        'included_field_types' => [],
+        'excluded_class_field_combos' => [],
+        'included_class_field_combos' => [],
+        'grouped' => false,
     ];
 
-    private static array $included_fields = [];
-
-    private static array $excluded_field_types = [];
-
-    private static array $included_field_types = [];
-
-    private static $excluded_class_field_combos = [
-        // 'SilverStripe\\Versioned\\ChangeSetItem' => [
-        //     'ClassName',
-        // ],
+    private static array $field_grouping_names = [
+        'db' => 'Database Fields',
+        'casting' => 'Calculated Fields',
+        'belongs' => 'Has One',
+        'has_one' => 'Has One',
+        'has_many' => 'Has Many',
+        'many_many' => 'Has Many',
+        'belongs_many_many' => 'Has Many',
     ];
 
-    private static $included_class_field_combos = [
-        // 'SilverStripe\\Versioned\\ChangeSetItem' => [
-        //     'ClassName',
-        // ],
-    ];
-
-    private static array $excluded_fields = [];
-
-    private static $only_included_models_with_cmseditlink = false;
-
-    private static $show_pages_first_in_list_of_models = true;
-
-
+    protected $onlyIncludeModelsWithCMSEditLink = true;
+    protected $onlyIncludeModelsWithRecords = true;
     protected $excludedModels = [];
     protected $includedModels = [];
 
@@ -58,148 +52,53 @@ class ClassAndFieldInfo
     protected $includedFieldTypes = [];
     protected $excludedClassFieldCombos = [];
     protected $includedClassFieldCombos = [];
-    protected $onlyIncludeModelsWithCMSEditLink = true;
-    protected $showPagesFirst = false;
-
-
-    public function setExcludedModels(array $excludedModels): static
-    {
-        $this->excludedModels = $excludedModels;
-        return $this;
-    }
-    public function setIncludedModels(array $includedModels): static
-    {
-        $this->includedModels = $includedModels;
-        return $this;
-    }
-    public function setIncludedFields(array $includedFields): static
-    {
-        $this->includedFields = $includedFields;
-        return $this;
-    }
-    public function setExcludedFields(array $excludedFields): static
-    {
-        $this->excludedFields = $excludedFields;
-        return $this;
-    }
-    public function setExcludedFieldTypes(array $excludedFieldTypes): static
-    {
-        $this->excludedFieldTypes = $excludedFieldTypes;
-        return $this;
-    }
-    public function setIncludedFieldTypes(array $includedFieldTypes): static
-    {
-        $this->includedFieldTypes = $includedFieldTypes;
-        return $this;
-    }
-    public function setExcludedClassFieldCombos(array $excludedClassFieldCombos): static
-    {
-        $this->excludedClassFieldCombos = $excludedClassFieldCombos;
-        return $this;
-    }
-    public function setIncludedClassFieldCombos(array $includedClassFieldCombos): static
-    {
-        $this->includedClassFieldCombos = $includedClassFieldCombos;
-        return $this;
-    }
-    public function setOnlyIncludeModelsWithCMSEditLink(bool $onlyIncludeModelsWithCMSEditLink): static
-    {
-        $this->onlyIncludeModelsWithCMSEditLink = $onlyIncludeModelsWithCMSEditLink;
-        return $this;
-    }
-    public function setShowPagesFirst(bool $showPagesFirst): static
-    {
-        $this->showPagesFirst = $showPagesFirst;
-        return $this;
-    }
-
-    public function addToExcludedModels(array $excludedModels): static
-    {
-        $this->excludedModels = array_merge($this->excludedModels, $excludedModels);
-        return $this;
-    }
-    public function addToIncludedModels(array $includedModels): static
-    {
-        $this->includedModels = array_merge($this->includedModels, $includedModels);
-        return $this;
-    }
-    public function addToIncludedFields(array $includedFields): static
-    {
-        $this->includedFields = array_merge($this->includedFields, $includedFields);
-        return $this;
-    }
-    public function addToExcludedFields(array $excludedFields): static
-    {
-        $this->excludedFields = array_merge($this->excludedFields, $excludedFields);
-        return $this;
-    }
-    public function addToExcludedFieldTypes(array $excludedFieldTypes): static
-    {
-        $this->excludedFieldTypes = array_merge($this->excludedFieldTypes, $excludedFieldTypes);
-        return $this;
-    }
-    public function addToIncludedFieldTypes(array $includedFieldTypes): static
-    {
-        $this->includedFieldTypes = array_merge($this->includedFieldTypes, $includedFieldTypes);
-        return $this;
-    }
-    public function addToExcludedClassFieldCombos(array $excludedClassFieldCombos): static
-    {
-        $this->excludedClassFieldCombos = array_merge($this->excludedClassFieldCombos, $excludedClassFieldCombos);
-        return $this;
-    }
-    public function addToIncludedClassFieldCombos(array $includedClassFieldCombos): static
-    {
-        $this->includedClassFieldCombos = array_merge($this->includedClassFieldCombos, $includedClassFieldCombos);
-        return $this;
-    }
+    protected $grouped = false;
 
 
     public function __construct()
     {
-        $this->setExcludedModels($this->config()->get('excluded_models'));
-        $this->setIncludedModels($this->config()->get('included_models'));
-        $this->setIncludedFields($this->config()->get('included_fields'));
-        $this->setExcludedFields($this->config()->get('excluded_fields'));
-        $this->setExcludedFieldTypes($this->config()->get('excluded_field_types'));
-        $this->setIncludedFieldTypes($this->config()->get('included_field_types'));
-        $this->setExcludedClassFieldCombos($this->config()->get('excluded_class_field_combos'));
-        $this->setIncludedClassFieldCombos($this->config()->get('included_class_field_combos'));
-        $this->setOnlyIncludeModelsWithCMSEditLink($this->config()->get('only_included_models_with_cmseditlink'));
-        $this->setShowPagesFirst($this->config()->get('show_pages_first_in_list_of_models'));
+        $this->addInclusionsAndExclusions(
+            $this->config()->get('class_and_field_inclusion_exclusion_schema')
+        );
     }
 
-    protected function addInclusionsAndExclusions($requestingObject): void
+    protected function addInclusionsAndExclusions(array $schema): void
     {
-        $this->addToExcludedModels($requestingObject->config()->get('excluded_models') ?: []);
-        $this->addToIncludedModels($requestingObject->config()->get('included_models') ?: []);
-        $this->addToIncludedFields($requestingObject->config()->get('included_fields') ?: []);
-        $this->addToExcludedFields($requestingObject->config()->get('excluded_fields') ?: []);
-        $this->addToExcludedFieldTypes($requestingObject->config()->get('excluded_field_types') ?: []);
-        $this->addToIncludedFieldTypes($requestingObject->config()->get('included_field_types') ?: []);
-        $this->addToExcludedClassFieldCombos($requestingObject->config()->get('excluded_class_field_combos') ?: []);
-        $this->addToIncludedClassFieldCombos($requestingObject->config()->get('included_class_field_combos') ?: []);
-
-        $onlyIncludeModelsWithCMSEditLink = $requestingObject->config()->get('only_included_models_with_cmseditlink');
-        if ($onlyIncludeModelsWithCMSEditLink) {
-            $this->setOnlyIncludeModelsWithCMSEditLink($onlyIncludeModelsWithCMSEditLink);
+        if (empty($schema)) {
+            return;
         }
-        $showPagesFirst = $requestingObject->config()->get('show_pages_first_in_list_of_models');
-        if ($showPagesFirst) {
-            $this->setShowPagesFirst($showPagesFirst);
+        foreach ($schema as $key => $value) {
+            if (
+                !property_exists($this, $key)
+            ) {
+                user_error(
+                    'Schema Error: ' . $key . ' does not exist in ' . __CLASS__,
+                    E_USER_WARNING
+                );
+            }
+            if (is_array($value)) {
+                $this->$key = array_unique(array_merge($this->$key, $value));
+            } else {
+                $this->$key = $value;
+            }
         }
     }
 
     protected static array $listOfClasses = [];
 
-    public function getListOfClasses($requestingObject): array
+    public function getListOfClasses(?array $additionalSchema = []): array
     {
-        $key = get_class($requestingObject);
-        if (!isset(self::$listOfClasses[$key])) {
-            $otherList = [];
-            $pageList = [];
+        $cacheKey = implode(
+            '-',
+            [
+                $additionalSchema ? serialize($additionalSchema) : '',
+            ]
+        );
+
+        if (!isset(self::$listOfClasses[$cacheKey])) {
+            $this->addInclusionsAndExclusions($additionalSchema);
+            $list = [];
             $classes = ClassInfo::subclassesFor(DataObject::class, false);
-            $hasIsValidClassNameMethod = $requestingObject->hasMethod('IsValidClassName');
             foreach ($classes as $class) {
                 if (in_array($class, $this->excludedModels)) {
                     continue;
@@ -208,11 +107,11 @@ class ClassAndFieldInfo
                     continue;
                 }
 
-                if ($hasIsValidClassNameMethod && ! $requestingObject->IsValidClassName($class)) {
-                    continue;
-                }
                 // get the name
                 $obj = Injector::inst()->get($class);
+                if (!$obj->canView()) {
+                    continue;
+                }
                 $count = $class::get()->filter(['ClassName' => $class])->count();
                 if ($count === 0) {
                     continue;
@@ -225,38 +124,78 @@ class ClassAndFieldInfo
                     }
                     $name = trim($name);
                     // add name to list
-                    foreach ([$otherList, $pageList] as $list) {
-                        if (in_array($name, $list, true)) {
+
+                    $name .= ' (' . $count . ' records)';
+                    if ($this->grouped) {
+                        $rootParentName = $this->getDirectSubclassOfDataObjectName($class);
+                        if (! isset($list[$rootParentName])) {
+                            $list[$rootParentName] = [];
+                        }
+                        if (in_array($name, $list[$rootParentName], true)) {
                             $name .= ' (disambiguation class name: ' . $class . ')';
                         }
-                    }
-                    $name .= ' (' . $count . ' records)';
-                    if ($this->showPagesFirst) {
-                        if ($obj instanceof SiteTree) {
-                            $pageList[$class] = $name;
-                        } else {
-                            $otherList[$class] = $name;
-                        }
+                        $list[$rootParentName][$class] = $name;
                     } else {
-                        $otherList[$class] = $name;
+                        if (in_array($name, $list, true)) {
+                            $name .= ' - disambiguation class name: ' . $class;
+                        }
+                        $list[$class] = $name;
                     }
                 }
             }
-            asort($pageList);
-            asort($otherList);
-            self::$listOfClasses[$key] = $pageList + $otherList;
+            ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
+            if ($this->grouped) {
+                foreach ($list as &$subArray) {
+                    asort($subArray, SORT_NATURAL | SORT_FLAG_CASE);
+                }
+            }
+            unset($subArray); // prevent reference issues
+            self::$listOfClasses[$cacheKey] = $list;
         }
-        return self::$listOfClasses[$key];
+        return self::$listOfClasses[$cacheKey];
     }
 
+    public function getDirectSubclassOfDataObjectName(string $className, ?string $notGroupedName = 'Not Grouped'): ?string
+    {
+        $rootParent = $this->getDirectSubclassOfDataObject($className);
+        if ($rootParent && $rootParent !== $className) {
+            $obj = Injector::inst()->get($rootParent);
+            return $obj->i18n_plural_name();
+        }
+        return $notGroupedName;
+    }
 
+    public function getDirectSubclassOfDataObject(string $className): string
+    {
+        $ancestors = ClassInfo::ancestry($className);
+        foreach ($ancestors as $ancestor) {
+            if (is_subclass_of($ancestor, DataObject::class)) {
+                return $ancestor;
+            }
+        }
+        return $className;
+    }
 
     protected static array $listOfFieldNames = [];
 
-    public function getListOfFieldNames($requestingObject, string $recordClassName, ?array $incArray = ['db']): array
-    {
-        $key = get_class($requestingObject) . '-' . $recordClassName . '-' . implode('-', $incArray);
-        if (!isset(self::$listOfFieldNames[$key])) {
+    public function getListOfFieldNames(
+        string $recordClassName,
+        ?array $incArray = ['db'],
+        ?array $additionalSchema = []
+    ): array {
+        $cacheKey = implode(
+            '-',
+            [
+                $recordClassName,
+                implode('_', $incArray),
+                $additionalSchema ? serialize($additionalSchema) : '',
+            ]
+        );
+        if (!isset(self::$listOfFieldNames[$cacheKey])) {
+            $groupNames = [];
+            if ($this->grouped) {
+                $groupNames = $this->config()->get('field_grouping_names');
+            }
             $record = Injector::inst()->get($recordClassName);
             if (!$record || !$record instanceof DataObject) {
                 return [];
@@ -272,15 +211,11 @@ class ClassAndFieldInfo
             }
 
             // Get configuration variables using config system
-            $hasIsValidFieldTypeMethod = $requestingObject->hasMethod('IsValidFieldType');
-            $classList = $this->getListOfClasses($requestingObject);
+            $classList = $this->getListOfClasses();
             foreach ($fieldsOuterArray as $incType => $fields) {
-                $nonRelField = $incType === 'db' || $incType === 'casting';
+                $isRelField = $incType === 'db' || $incType === 'casting' ? false : true;
                 foreach ($fields as $name => $typeNameOrClassName) {
-                    if ($nonRelField) {
-                        if ($hasIsValidFieldTypeMethod && ! $requestingObject->IsValidFieldType((string) $typeNameOrClassName)) {
-                            continue;
-                        }
+                    if ($isRelField === false) {
                     } else {
                         if (!isset($classList[$typeNameOrClassName])) {
                             continue;
@@ -298,7 +233,7 @@ class ClassAndFieldInfo
                     ) {
                         continue;
                     }
-                    if ($nonRelField) {
+                    if ($isRelField === false) {
                         $typeObject = $record->dbObject($typeNameOrClassName);
 
                         // Skip if field type is in excluded_field_types
@@ -324,25 +259,42 @@ class ClassAndFieldInfo
                     ) {
                         continue;
                     }
+                    if ($this->grouped) {
+                        $groupNameNice = $groupNames[$incType] ?? $incType;
+                        if (!isset($list[$groupNameNice])) {
+                            $list[$groupNameNice] = [];
+                        }
+                    }
                     $niceName = $labels[$name] ?? $name;
-                    if ($nonRelField) {
-                        $list[$name] = $niceName;
+                    if ($isRelField === false) {
+                        if ($this->grouped) {
+                            $list[$groupNameNice][$name] = $niceName;
+                        } else {
+                            $list[$name] = $niceName;
+                        }
                     } else {
                         //todo: consider further fields in secondary classes
                         $subFields = $this->getListOfFieldNames(
-                            $requestingObject,
+
                             $typeNameOrClassName,
-                            ['db']
+                            ['db'],
+                            $additionalSchema
                         );
                         foreach ($subFields as $subFieldName => $subFieldLabel) {
-                            $list[$name . '.' . $subFieldName] =  $niceName . ' - ' . $subFieldLabel;
+                            $relKey =  $name . '.' . $subFieldName;
+                            $relLabel =  $niceName . ' - ' . $subFieldLabel;
+                            if ($this->grouped) {
+                                $list[$groupNameNice][$relKey] = $relLabel;
+                            } else {
+                                $list[$relKey] = $relLabel;
+                            }
                         }
                     }
                 }
             }
-            self::$listOfFieldNames[$key] = $list;
+            self::$listOfFieldNames[$cacheKey] = $list;
         }
-        return self::$listOfFieldNames[$key];
+        return self::$listOfFieldNames[$cacheKey];
     }
 
     /**
