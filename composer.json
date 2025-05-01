@@ -1,51 +1,43 @@
 {
-  "name": "sunnysideup/classes-and-fields-info",
-  "description": "Helps with creating lists of classes and fields for whatever purpose you may need them.",
-  "type": "silverstripe-vendormodule",
-  "keywords": [
-    "classes",
-    "ClassInfo",
-    "fields",
-    "field info",
-    "ORM",
-    "selection",
-    "filter",
-    "sort"
-  ],
-  "license": "BSD-3-Clause",
-  "require": {
-    "silverstripe/framework": "^5.0",
-    "silverstripe/admin": "^2.0"
-  },
-  "require-dev": {
-    "sunnysideup/sswebpack_engine_only": "dev-master",
-    "silverleague/ideannotator": "*",
-    "phpunit/phpunit": "^9.6",
-    "squizlabs/php_codesniffer": "^3.7",
-    "silverstripe/standards": "^1",
-    "phpstan/extension-installer": "^1.3"
-  },
-  "autoload": {
-    "psr-4": {
-      "Sunnysideup\\ClassesAndFieldsInfo\\": "src/"
-    }
-  },
-  "extra": {
-    "expose": [
-      "client/dist"
+    "name": "sunnysideup/classes-and-fields-info",
+    "description": "Helps with creating lists of classes and fields for whatever purpose you may need them.",
+    "type": "silverstripe-vendormodule",
+    "keywords": [
+        "classes",
+        "ClassInfo",
+        "fields",
+        "field info",
+        "ORM",
+        "selection",
+        "filter",
+        "sort"
+    ],
+    "license": "BSD-3-Clause",
+    "require": {
+        "silverstripe/framework": "^5.0",
+        "silverstripe/admin": "^2.0"
+    },
+    "require-dev": {
+        "sunnysideup/sswebpack_engine_only": "dev-master",
+        "silverleague/ideannotator": "*",
+        "phpunit/phpunit": "^9.6",
+        "squizlabs/php_codesniffer": "^3.7",
+        "silverstripe/standards": "^1",
+        "phpstan/extension-installer": "^1.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Sunnysideup\\ClassesAndFieldsInfo\\": "src/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "bin": [],
+    "authors": [
+        {
+            "name": "Nicolaas Thiemen Francken",
+            "email": "modules@sunnysideup.co.nz",
+            "role": "lead developer"
+        }
     ]
-  },
-  "minimum-stability": "dev",
-  "prefer-stable": true,
-  "bin": [
-    "bin/sake-npm-build-classes-and-fields-info.sh",
-    "bin/sake-npm-watch-classes-and-fields-info.sh"
-  ],
-  "authors": [
-    {
-      "name": "Nicolaas Thiemen Francken",
-      "email": "modules@sunnysideup.co.nz",
-      "role": "lead developer"
-    }
-  ]
 }
