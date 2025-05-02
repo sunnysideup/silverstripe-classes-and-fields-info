@@ -37,7 +37,7 @@ class MyDataObject extends DataObject
         return Injector::inst()->get(ClassAndFieldInfo::class)
             ->getListOfFields(
                 $this->ClassName,
-                ['db', 'casting', 'has_one', 'belongs']
+                ['db', 'casting', 'has_one', 'belongs', 'has_many', 'many_many']
                $this->Config()->get('class_and_field_inclusion_exclusion_schema'),
             );
     }
