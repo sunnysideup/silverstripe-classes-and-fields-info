@@ -216,11 +216,13 @@ class ClassAndFieldInfo
                     $list[$class] = $name;
                 }
             }
-            ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
             if ($this->grouped) {
+                ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
                 foreach ($list as &$subArray) {
                     asort($subArray, SORT_NATURAL | SORT_FLAG_CASE);
                 }
+            } else {
+                asort($list, SORT_NATURAL | SORT_FLAG_CASE);
             }
             unset($subArray); // prevent reference issues
             self::$listOfClasses[$cacheKey] = $list;
@@ -254,7 +256,8 @@ class ClassAndFieldInfo
     public function getListOfFieldNames(
         string $recordClassName,
         ?array $incArray = ['db'],
-        ?array $additionalSchema = []
+        ?array $additionalSchema = [],
+        ?bool $isSubGroup = false
     ): array {
         $cacheKey = implode(
             '-',
@@ -262,11 +265,14 @@ class ClassAndFieldInfo
                 $recordClassName,
                 implode('_', $incArray),
                 $additionalSchema ? serialize($additionalSchema) : '',
+                $isSubGroup ? 'true' : 'false',
             ]
         );
+        $this->addInclusionsAndExclusions($additionalSchema);
         if (!isset(self::$listOfFieldNames[$cacheKey])) {
+            $canGroup = $this->grouped && $isSubGroup === false;
             $groupNames = [];
-            if ($this->grouped) {
+            if ($canGroup) {
                 $groupNames = $this->config()->get('field_grouping_names');
             }
             $record = Injector::inst()->get($recordClassName);
@@ -287,8 +293,16 @@ class ClassAndFieldInfo
             // Get configuration variables using config system
             $classList = $this->getListOfClasses($listOfClassesSchema);
             foreach ($fieldsOuterArray as $incType => $fields) {
+                if (!is_array($fields) || empty($fields)) {
+                    continue;
+                }
                 $isRelField = $incType === 'db' || $incType === 'casting' ? false : true;
                 foreach ($fields as $name => $typeNameOrClassName) {
+
+                    //todo: figure out how to handle this better
+                    if (is_array($typeNameOrClassName)) {
+                        continue;
+                    }
                     if ($isRelField === false) {
                     } else {
                         if (!isset($classList[$typeNameOrClassName])) {
@@ -333,33 +347,33 @@ class ClassAndFieldInfo
                     ) {
                         continue;
                     }
-                    if ($this->grouped) {
+                    $niceName = $labels[$name] ?? $name;
+                    $groupNameNice = $incType;
+                    if ($canGroup) {
                         $groupNameNice = $groupNames[$incType] ?? $incType;
                         if (!isset($list[$groupNameNice])) {
                             $list[$groupNameNice] = [];
                         }
                     }
-                    $niceName = $labels[$name] ?? $name;
                     if ($isRelField === false) {
-                        if ($this->grouped) {
+                        if ($canGroup) {
                             $list[$groupNameNice][$name] = $niceName;
                         } else {
                             $list[$name] = $niceName;
                         }
-                    } else {
-                        $additionalSchemaRels = $additionalSchema;
-                        $additionalSchemaRels['Grouped'] = false;
-                        //todo: consider further fields in secondary classes
+                    } elseif ($isSubGroup === false) {
+                        // todo: consider further fields in secondary classes
                         $subFields = $this->getListOfFieldNames(
 
                             $typeNameOrClassName,
                             ['db'],
-                            $additionalSchemaRels
+                            $additionalSchema,
+                            true
                         );
                         foreach ($subFields as $subFieldName => $subFieldLabel) {
                             $relKey =  $name . '.' . $subFieldName;
                             $relLabel =  $niceName . ' - ' . $subFieldLabel;
-                            if ($this->grouped) {
+                            if ($canGroup) {
                                 $list[$groupNameNice][$relKey] = $relLabel;
                             } else {
                                 $list[$relKey] = $relLabel;
@@ -368,6 +382,15 @@ class ClassAndFieldInfo
                     }
                 }
             }
+            if ($canGroup) {
+                ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
+                foreach ($list as &$subArray) {
+                    asort($subArray, SORT_NATURAL | SORT_FLAG_CASE);
+                }
+            } else {
+                asort($list, SORT_NATURAL | SORT_FLAG_CASE);
+            }
+            unset($subArray); // prevent reference issues
             self::$listOfFieldNames[$cacheKey] = $list;
         }
         return self::$listOfFieldNames[$cacheKey];
@@ -419,9 +442,11 @@ class ClassAndFieldInfo
         return false;
     }
 
-    public function FindFieldTypeObject($obj, string $dotNotationField)
+    public function FindFieldTypeObject($obj, string $dotNotationField, ?string $name = '')
     {
-        list($class, $field) = $this->ResolveFieldFromChain($obj, $dotNotationField);
+        $vars = $this->ResolveFieldFromChain($obj, $dotNotationField);
+        $class = $vars['class'];
+        $field = $vars['field'];
         $obj = Injector::inst()->get($class);
         if ($obj && $obj->hasMethod('dbObject')) {
             return $obj->dbObject($field);
