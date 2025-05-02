@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Sunnysideup\ClassesAndFieldsInfo\Api;
 
+use DNADesign\Elemental\Models\ElementalArea;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\ClassInfo;
 use SilverStripe\Core\Config\Configurable;
@@ -11,6 +12,13 @@ use SilverStripe\Core\Injector\Injectable;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\FieldType\DBField;
+use SilverStripe\Security\LoginAttempt;
+use SilverStripe\Security\MemberPassword;
+use SilverStripe\Security\Permission;
+use SilverStripe\Security\RememberLoginHash;
+use SilverStripe\UserForms\Model\EditableFormField;
+use SilverStripe\Versioned\ChangeSet;
+use SilverStripe\Versioned\ChangeSetItem;
 
 class ClassAndFieldInfo
 {
@@ -18,12 +26,24 @@ class ClassAndFieldInfo
     use Configurable;
 
     private static array $class_and_field_inclusion_exclusion_schema = [
-        'only_include_models_with_cmseditlink' => true,
-        'only_include_models_with_can_create_true' => false,
-        'only_include_models_with_can_edit_true' => false,
-        'only_include_models_with_records' => true,
-        'excluded_models' => [],
+        'only_include_models_with_cms_edit_link' => false,
+        'only_include_models_with_can_create' => false,
+        'only_include_models_with_can_edit' => false,
+        'only_include_models_with_records' => false,
+        'excluded_models' => [
+            ChangeSet::class,
+            ChangeSetItem::class,
+            LoginAttempt::class,
+            RememberLoginHash::class,
+            MemberPassword::class,
+            Permission::class,
+            ElementalArea::class,
+        ],
         'included_models' => [],
+        'excluded_models_and_descendants' => [
+            EditableFormField::class,
+        ],
+        'included_models_and_descendants' => [],
         'excluded_fields' => [],
         'included_fields' => [],
         'excluded_field_types' => [],
@@ -43,12 +63,14 @@ class ClassAndFieldInfo
         'belongs_many_many' => 'Has Many',
     ];
 
-    protected $onlyIncludeModelsWithCMSEditLink = true;
+    protected $onlyIncludeModelsWithCmsEditLink = true;
     protected $onlyIncludeModelsWithCanCreate = true;
     protected $onlyIncludeModelsWithCanEdit = true;
     protected $onlyIncludeModelsWithRecords = true;
     protected $excludedModels = [];
     protected $includedModels = [];
+    protected $excludedModelsAndDescendants = [];
+    protected $includedModelsAndDescendants = [];
 
     protected $includedFields = [];
     protected $excludedFields = [];
@@ -102,7 +124,7 @@ class ClassAndFieldInfo
                 );
             }
             if (is_array($this->$field) && is_array($value)) {
-                $this->$key = $this->mergeSmart($this->$key, $value);
+                $this->$field = $this->mergeSmart($this->$field, $value);
             } else {
                 $this->$field = $value;
             }
@@ -129,10 +151,24 @@ class ClassAndFieldInfo
                 if (in_array($class, $this->excludedModels)) {
                     continue;
                 }
+                if (in_array($class, $this->excludedModelsAndDescendants)) {
+                    continue;
+                }
+                foreach ($this->excludedModelsAndDescendants as $excludedModelParent) {
+                    if (is_subclass_of($class, $excludedModelParent)) {
+                        continue 2;
+                    }
+                }
                 if (!empty($includedModels) && !in_array($class, $this->includedModels)) {
                     continue;
                 }
-
+                if (count($this->includedModelsAndDescendants)) {
+                    foreach ($this->includedModelsAndDescendants as $includedModelParent) {
+                        if (!is_subclass_of($class, $includedModelParent)) {
+                            continue 2;
+                        }
+                    }
+                }
                 // get the name
                 $obj = Injector::inst()->get($class);
                 if (!$obj->canView()) {
@@ -148,7 +184,7 @@ class ClassAndFieldInfo
                 if ($count === 0) {
                     continue;
                 }
-                if ($this->onlyIncludeModelsWithCMSEditLink && !$obj->hasMethod('CMSEditLink')) {
+                if ($this->onlyIncludeModelsWithCmsEditLink && !$obj->hasMethod('CMSEditLink')) {
                     continue;
                 }
                 $name = $obj->i18n_singular_name();
