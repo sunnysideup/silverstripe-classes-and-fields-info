@@ -54,6 +54,26 @@ class ClassAndFieldInfo
     protected $includedClassFieldCombos = [];
     protected $grouped = false;
 
+    /**
+     * Converts field types like SilverStripe\ORM\FieldType\Varchar or Varchar(255) to
+     * a standardised type like Varchar.
+     *
+     * @param string|DBField $type
+     * @return string
+     */
+    public static function standard_short_field_type_name($typeNameOrObject): string
+    {
+        if (is_object($typeNameOrObject)) {
+            $type = get_class($typeNameOrObject);
+        } else {
+            $type = $typeNameOrObject;
+        }
+        if ($type && class_exists($type)) {
+            $type = ClassInfo::shortName($type);
+        }
+        // anything up to (
+        return preg_replace('/\(.*$/', '', $type);
+    }
 
     public function __construct()
     {
@@ -209,9 +229,10 @@ class ClassAndFieldInfo
             foreach ($incArray as $incType) {
                 $fieldsOuterArray[$incType] = $record->config()->get($incType);
             }
-
+            $listOfClassesSchema = $additionalSchema;
+            $listOfClassesSchema['grouped'] = false;
             // Get configuration variables using config system
-            $classList = $this->getListOfClasses();
+            $classList = $this->getListOfClasses($listOfClassesSchema);
             foreach ($fieldsOuterArray as $incType => $fields) {
                 $isRelField = $incType === 'db' || $incType === 'casting' ? false : true;
                 foreach ($fields as $name => $typeNameOrClassName) {
@@ -273,12 +294,14 @@ class ClassAndFieldInfo
                             $list[$name] = $niceName;
                         }
                     } else {
+                        $additionalSchemaRels = $additionalSchema;
+                        $additionalSchemaRels['Grouped'] = false;
                         //todo: consider further fields in secondary classes
                         $subFields = $this->getListOfFieldNames(
 
                             $typeNameOrClassName,
                             ['db'],
-                            $additionalSchema
+                            $additionalSchemaRels
                         );
                         foreach ($subFields as $subFieldName => $subFieldLabel) {
                             $relKey =  $name . '.' . $subFieldName;
@@ -310,6 +333,10 @@ class ClassAndFieldInfo
             if ($typeObject instanceof $excludedType) {
                 return true;
             }
+            $shortName = self::standard_short_field_type_name($typeObject);
+            if ($shortName === $excludedType) {
+                return true;
+            }
         }
         return false;
     }
@@ -329,6 +356,10 @@ class ClassAndFieldInfo
 
         foreach ($this->includedFieldTypes as $includedType) {
             if ($typeObject instanceof $includedType) {
+                return true;
+            }
+            $shortName = self::standard_short_field_type_name($typeObject);
+            if ($shortName === $includedType) {
                 return true;
             }
         }
