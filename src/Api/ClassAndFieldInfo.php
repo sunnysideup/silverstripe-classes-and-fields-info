@@ -19,6 +19,8 @@ class ClassAndFieldInfo
 
     private static array $class_and_field_inclusion_exclusion_schema = [
         'only_include_models_with_cmseditlink' => true,
+        'only_include_models_with_can_create_true' => false,
+        'only_include_models_with_can_edit_true' => false,
         'only_include_models_with_records' => true,
         'excluded_models' => [],
         'included_models' => [],
@@ -42,6 +44,8 @@ class ClassAndFieldInfo
     ];
 
     protected $onlyIncludeModelsWithCMSEditLink = true;
+    protected $onlyIncludeModelsWithCanCreate = true;
+    protected $onlyIncludeModelsWithCanEdit = true;
     protected $onlyIncludeModelsWithRecords = true;
     protected $excludedModels = [];
     protected $includedModels = [];
@@ -88,21 +92,23 @@ class ClassAndFieldInfo
             return;
         }
         foreach ($schema as $key => $value) {
+            $field = $this->snakeToCamel($key);
             if (
-                !property_exists($this, $key)
+                !property_exists($this, $field)
             ) {
                 user_error(
-                    'Schema Error: ' . $key . ' does not exist in ' . __CLASS__,
+                    'Schema Error: ' . $field . ' does not exist in ' . __CLASS__,
                     E_USER_WARNING
                 );
             }
-            if (is_array($value)) {
-                $this->$key = array_unique(array_merge($this->$key, $value));
+            if (is_array($this->$field) && is_array($value)) {
+                $this->$key = $this->mergeSmart($this->$key, $value);
             } else {
-                $this->$key = $value;
+                $this->$field = $value;
             }
         }
     }
+
 
     protected static array $listOfClasses = [];
 
@@ -132,35 +138,46 @@ class ClassAndFieldInfo
                 if (!$obj->canView()) {
                     continue;
                 }
+                if ($this->onlyIncludeModelsWithCanCreate && !$obj->canCreate()) {
+                    continue;
+                }
+                if ($this->onlyIncludeModelsWithCanEdit && !$obj->canEdit()) {
+                    continue;
+                }
                 $count = $class::get()->filter(['ClassName' => $class])->count();
                 if ($count === 0) {
                     continue;
                 }
-                if ($obj->hasMethod('CMSEditLink') || !$this->onlyIncludeModelsWithCMSEditLink) {
-                    $name = $obj->i18n_singular_name();
-                    $desc = $obj->Config()->get('description');
-                    if ($desc) {
-                        $name .= ' - ' . $desc;
-                    }
-                    $name = trim($name);
-                    // add name to list
+                if ($this->onlyIncludeModelsWithCMSEditLink && !$obj->hasMethod('CMSEditLink')) {
+                    continue;
+                }
+                $name = $obj->i18n_singular_name();
+                $desc = $obj->Config()->get('description');
+                if ($desc) {
+                    $name .= ' - ' . $desc;
+                }
+                $name = trim($name);
+                // add name to list
 
-                    $name .= ' (' . $count . ' records)';
-                    if ($this->grouped) {
-                        $rootParentName = $this->getDirectSubclassOfDataObjectName($class);
-                        if (! isset($list[$rootParentName])) {
-                            $list[$rootParentName] = [];
-                        }
-                        if (in_array($name, $list[$rootParentName], true)) {
-                            $name .= ' (disambiguation class name: ' . $class . ')';
-                        }
-                        $list[$rootParentName][$class] = $name;
-                    } else {
-                        if (in_array($name, $list, true)) {
-                            $name .= ' - disambiguation class name: ' . $class;
-                        }
-                        $list[$class] = $name;
+                $name .= ' (records: ' . $count . ')';
+                if ($this->grouped) {
+                    $rootParentName = $this->getDirectSubclassOfDataObjectName($class);
+                    if (! isset($list[$rootParentName])) {
+                        $list[$rootParentName] = [];
                     }
+                    $otherKey = array_search($name, $list[$rootParentName], true);
+                    if ($otherKey) {
+                        $list[$rootParentName][$otherKey] = $name . ' (disambiguation class name: ' . $otherKey . ')';;
+                        $name .= ' (disambiguation class name: ' . $class . ')';
+                    }
+                    $list[$rootParentName][$class] = $name;
+                } else {
+                    $otherKey = array_search($name, $list, true);
+                    if ($otherKey) {
+                        $list[$otherKey] = $name . ' (disambiguation class name: ' . $otherKey . ')';;
+                        $name .= ' - disambiguation class name: ' . $class;
+                    }
+                    $list[$class] = $name;
                 }
             }
             ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
@@ -387,5 +404,29 @@ class ClassAndFieldInfo
             $lastObj = $lastObj->$part();
         }
         return ['class' => get_class($lastObj), 'field' => end($parts)];
+    }
+
+    private function snakeToCamel(string $snake): string
+    {
+        $parts = explode('_', $snake);
+        $camel = array_shift($parts);
+        foreach ($parts as $part) {
+            $camel .= ucfirst($part);
+        }
+        return $camel;
+    }
+    private function isAssoc(array $arr): bool
+    {
+        return array_keys($arr) !== range(0, count($arr) - 1);
+    }
+
+    private function mergeSmart(array $a, array $b): array
+    {
+        if ($this->isAssoc($a) || $this->isAssoc($b)) {
+            // one or both assoc: keep keys, latter overrides
+            return array_replace($a, $b);
+        }
+        // both non-assoc: numeric merge
+        return array_unique(array_merge($a, $b));
     }
 }
