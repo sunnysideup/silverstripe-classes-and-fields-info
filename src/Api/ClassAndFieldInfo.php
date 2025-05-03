@@ -44,7 +44,12 @@ class ClassAndFieldInfo
             EditableFormField::class,
         ],
         'included_models_and_descendants' => [],
-        'excluded_fields' => [],
+        'excluded_fields' => [
+            'ViewerGroups',
+            'EditorGroups',
+            'ViewerMembers',
+            'EditorMembers',
+        ],
         'included_fields' => [],
         'excluded_field_types' => [],
         'included_field_types' => [],
@@ -55,12 +60,12 @@ class ClassAndFieldInfo
 
     private static array $field_grouping_names = [
         'db' => 'Database Fields',
-        'casting' => 'Calculated Fields',
+        'casting' => 'Other Fields',
         'belongs' => 'Has One',
         'has_one' => 'Has One',
         'has_many' => 'Has Many',
-        'many_many' => 'Has Many',
-        'belongs_many_many' => 'Has Many',
+        'many_many' => 'Has Many (and vice versa)',
+        'belongs_many_many' => 'Has Many (and vice versa)',
     ];
 
     protected $onlyIncludeModelsWithCmsEditLink = true;
