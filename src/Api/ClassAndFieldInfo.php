@@ -327,7 +327,7 @@ class ClassAndFieldInfo
                         continue;
                     }
                     if ($isRelField === false) {
-                        $typeObject = $record->dbObject($typeNameOrClassName);
+                        $typeObject = $record->dbObject($name);
 
                         // Skip if field type is in excluded_field_types
                         if ($this->isExcludedFieldType($typeObject)) {
@@ -440,7 +440,9 @@ class ClassAndFieldInfo
                 return true;
             }
             $shortName = self::standard_short_field_type_name($typeObject);
-            if ($shortName === $includedType) {
+            $shorterName =  str_starts_with($shortName, 'DB') ? substr($shortName, 2) : $shortName;
+
+            if ($shortName === $includedType || $shorterName === $includedType) {
                 return true;
             }
         }
