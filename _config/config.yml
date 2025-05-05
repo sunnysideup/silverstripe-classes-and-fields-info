@@ -1,1 +1,6 @@
 # see https://docs.silverstripe.org/en/developer_guides/configuration/configuration/
+SilverStripe\Core\Injector\Injector:
+  Psr\SimpleCache\CacheInterface.ClassAndFieldInfoCache:
+    factory: SilverStripe\Core\Cache\CacheFactory
+    constructor:
+      namespace: "ClassAndFieldInfoCache"

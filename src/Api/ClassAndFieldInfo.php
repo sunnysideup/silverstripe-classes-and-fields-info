@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Sunnysideup\ClassesAndFieldsInfo\Api;
 
+use Psr\SimpleCache\CacheInterface;
 use DNADesign\Elemental\Models\ElementalArea;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\ClassInfo;
 use SilverStripe\Core\Config\Configurable;
+use SilverStripe\Core\Flushable;
 use SilverStripe\Core\Injector\Injectable;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\ORM\DataObject;
@@ -20,7 +22,7 @@ use SilverStripe\UserForms\Model\EditableFormField;
 use SilverStripe\Versioned\ChangeSet;
 use SilverStripe\Versioned\ChangeSetItem;
 
-class ClassAndFieldInfo
+class ClassAndFieldInfo implements Flushable
 {
     use Injectable;
     use Configurable;
@@ -37,7 +39,6 @@ class ClassAndFieldInfo
             RememberLoginHash::class,
             MemberPassword::class,
             Permission::class,
-            ElementalArea::class,
         ],
         'included_models' => [],
         'excluded_models_and_descendants' => [
@@ -45,6 +46,9 @@ class ClassAndFieldInfo
         ],
         'included_models_and_descendants' => [],
         'excluded_fields' => [
+            'Version',
+            'HasBrokenFile',
+            'HasBrokenLink',
             'ViewerGroups',
             'EditorGroups',
             'ViewerMembers',
@@ -92,7 +96,7 @@ class ClassAndFieldInfo
      * @param string|DBField $type
      * @return string
      */
-    public static function standard_short_field_type_name($typeNameOrObject): string
+    public static function standard_short_field_type_name($typeNameOrObject, ?bool $shorter = false): string
     {
         if (is_object($typeNameOrObject)) {
             $type = get_class($typeNameOrObject);
@@ -103,7 +107,11 @@ class ClassAndFieldInfo
             $type = ClassInfo::shortName($type);
         }
         // anything up to (
-        return preg_replace('/\(.*$/', '', $type);
+        $type = preg_replace('/\(.*$/', '', $type);
+        if ($shorter) {
+            $type = preg_replace('/^DB/', '', $type);
+        }
+        return $type;
     }
 
     public function __construct()
@@ -144,93 +152,103 @@ class ClassAndFieldInfo
         $cacheKey = implode(
             '-',
             [
+                'C',
                 $additionalSchema ? serialize($additionalSchema) : '',
             ]
         );
 
         if (!isset(self::$listOfClasses[$cacheKey])) {
-            $this->addInclusionsAndExclusions($additionalSchema);
-            $list = [];
-            $classes = ClassInfo::subclassesFor(DataObject::class, false);
-            foreach ($classes as $class) {
-                if (in_array($class, $this->excludedModels)) {
-                    continue;
-                }
-                if (in_array($class, $this->excludedModelsAndDescendants)) {
-                    continue;
-                }
-                foreach ($this->excludedModelsAndDescendants as $excludedModelParent) {
-                    if (is_subclass_of($class, $excludedModelParent)) {
-                        continue 2;
+            $cachedValue = $this->getCacheValue($cacheKey);
+            if ($cachedValue !== null) {
+                self::$listOfClasses[$cacheKey] = $cachedValue;
+            }
+            if (!isset(self::$listOfClasses[$cacheKey])) {
+                $this->addInclusionsAndExclusions($additionalSchema);
+                $list = [];
+                $straightNames = [];
+                $classes = ClassInfo::subclassesFor(DataObject::class, false);
+                foreach ($classes as $class) {
+                    if (in_array($class, $this->excludedModels)) {
+                        continue;
                     }
-                }
-                if (!empty($includedModels) && !in_array($class, $this->includedModels)) {
-                    continue;
-                }
-                if (count($this->includedModelsAndDescendants)) {
-                    foreach ($this->includedModelsAndDescendants as $includedModelParent) {
-                        if (!is_subclass_of($class, $includedModelParent)) {
+                    if (in_array($class, $this->excludedModelsAndDescendants)) {
+                        continue;
+                    }
+                    foreach ($this->excludedModelsAndDescendants as $excludedModelParent) {
+                        if (is_subclass_of($class, $excludedModelParent)) {
                             continue 2;
                         }
                     }
-                }
-                // get the name
-                $obj = Injector::inst()->get($class);
-                if (!$obj->canView()) {
-                    continue;
-                }
-                if ($this->onlyIncludeModelsWithCanCreate && !$obj->canCreate()) {
-                    continue;
-                }
-                if ($this->onlyIncludeModelsWithCanEdit && !$obj->canEdit()) {
-                    continue;
-                }
-                $count = $class::get()->filter(['ClassName' => $class])->count();
-                if ($count === 0) {
-                    continue;
-                }
-                if ($this->onlyIncludeModelsWithCmsEditLink && !$obj->hasMethod('CMSEditLink')) {
-                    continue;
-                }
-                $name = $obj->i18n_singular_name();
-                $desc = $obj->Config()->get('description');
-                if ($desc) {
-                    $name .= ' - ' . $desc;
-                }
-                $name = trim($name);
-                // add name to list
+                    if (!empty($includedModels) && !in_array($class, $this->includedModels)) {
+                        continue;
+                    }
+                    if (count($this->includedModelsAndDescendants)) {
+                        foreach ($this->includedModelsAndDescendants as $includedModelParent) {
+                            if (!is_subclass_of($class, $includedModelParent)) {
+                                continue 2;
+                            }
+                        }
+                    }
+                    // get the name
+                    $obj = Injector::inst()->get($class);
+                    if (!$obj->canView()) {
+                        continue;
+                    }
+                    if ($this->onlyIncludeModelsWithCanCreate && !$obj->canCreate()) {
+                        continue;
+                    }
+                    if ($this->onlyIncludeModelsWithCanEdit && !$obj->canEdit()) {
+                        continue;
+                    }
+                    $count = $class::get()->filter(['ClassName' => $class])->count();
+                    if ($count === 0) {
+                        continue;
+                    }
+                    if ($this->onlyIncludeModelsWithCmsEditLink && !$obj->hasMethod('CMSEditLink')) {
+                        continue;
+                    }
+                    $name = $obj->i18n_singular_name();
+                    $description = $obj->Config()->get('description');
+                    if ($description) {
+                        $name .= ' - ' . $description;
+                    }
+                    $straightNames[$class] = $name;
+                    $name = trim($name);
+                    // add name to list
 
-                $name .= ' (records: ' . $count . ')';
+                    $name .= ' (records: ' . $count . ')';
+                    if ($this->grouped) {
+                        $rootParentName = $this->getDirectSubclassOfDataObjectName($class);
+                        if (! isset($list[$rootParentName])) {
+                            $list[$rootParentName] = [];
+                        }
+                        $otherClass = array_search($name, $straightNames = [], true);
+                        if ($otherClass) {
+                            $list[$rootParentName][$otherClass] = $name . ' - disambiguation class name: ' . $otherClass . ')';
+                            $name .= ' - disambiguation class name: ' . $class . ')';
+                        }
+                        $list[$rootParentName][$class] = $name;
+                    } else {
+                        $otherClass = array_search($name, $straightNames, true);
+                        if ($otherClass) {
+                            $list[$otherClass] = $name . ' - disambiguation class name: ' . $otherClass . ')';;
+                            $name .= ' - disambiguation class name: ' . $class;
+                        }
+                        $list[$class] = $name;
+                    }
+                }
                 if ($this->grouped) {
-                    $rootParentName = $this->getDirectSubclassOfDataObjectName($class);
-                    if (! isset($list[$rootParentName])) {
-                        $list[$rootParentName] = [];
+                    ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
+                    foreach ($list as &$subArray) {
+                        asort($subArray, SORT_NATURAL | SORT_FLAG_CASE);
                     }
-                    $otherKey = array_search($name, $list[$rootParentName], true);
-                    if ($otherKey) {
-                        $list[$rootParentName][$otherKey] = $name . ' (disambiguation class name: ' . $otherKey . ')';;
-                        $name .= ' (disambiguation class name: ' . $class . ')';
-                    }
-                    $list[$rootParentName][$class] = $name;
                 } else {
-                    $otherKey = array_search($name, $list, true);
-                    if ($otherKey) {
-                        $list[$otherKey] = $name . ' (disambiguation class name: ' . $otherKey . ')';;
-                        $name .= ' - disambiguation class name: ' . $class;
-                    }
-                    $list[$class] = $name;
+                    asort($list, SORT_NATURAL | SORT_FLAG_CASE);
                 }
+                unset($subArray); // prevent reference issues
+                $this->setCacheValue($cacheKey, $list);
+                self::$listOfClasses[$cacheKey] = $list;
             }
-            if ($this->grouped) {
-                ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
-                foreach ($list as &$subArray) {
-                    asort($subArray, SORT_NATURAL | SORT_FLAG_CASE);
-                }
-            } else {
-                asort($list, SORT_NATURAL | SORT_FLAG_CASE);
-            }
-            unset($subArray); // prevent reference issues
-            self::$listOfClasses[$cacheKey] = $list;
         }
         return self::$listOfClasses[$cacheKey];
     }
@@ -267,6 +285,7 @@ class ClassAndFieldInfo
         $cacheKey = implode(
             '-',
             [
+                'F',
                 $recordClassName,
                 implode('_', $incArray),
                 $additionalSchema ? serialize($additionalSchema) : '',
@@ -275,128 +294,136 @@ class ClassAndFieldInfo
         );
         $this->addInclusionsAndExclusions($additionalSchema);
         if (!isset(self::$listOfFieldNames[$cacheKey])) {
-            $canGroup = $this->grouped && $isSubGroup === false;
-            $groupNames = [];
-            if ($canGroup) {
-                $groupNames = $this->config()->get('field_grouping_names');
+            $cachedValue = $this->getCacheValue($cacheKey);
+            if ($cachedValue !== null) {
+                self::$listOfFieldNames[$cacheKey] = $cachedValue;
             }
-            $record = Injector::inst()->get($recordClassName);
-            if (!$record || !$record instanceof DataObject) {
-                return [];
-            }
-            $list = [];
-            $labels = $record->fieldLabels();
-            if (empty($incArray)) {
-                $incArray = ['db'];
-            }
-            $fieldsOuterArray = [];
-            foreach ($incArray as $incType) {
-                $fieldsOuterArray[$incType] = $record->config()->get($incType);
-            }
-            $listOfClassesSchema = $additionalSchema;
-            $listOfClassesSchema['grouped'] = false;
-            // Get configuration variables using config system
-            $classList = $this->getListOfClasses($listOfClassesSchema);
-            foreach ($fieldsOuterArray as $incType => $fields) {
-                if (!is_array($fields) || empty($fields)) {
-                    continue;
+            if (!isset(self::$listOfFieldNames[$cacheKey])) {
+                self::$listOfFieldNames[$cacheKey] = [];
+                $canGroup = $this->grouped && $isSubGroup === false;
+                $groupNames = [];
+                if ($canGroup) {
+                    $groupNames = $this->config()->get('field_grouping_names');
                 }
-                $isRelField = $incType === 'db' || $incType === 'casting' ? false : true;
-                foreach ($fields as $name => $typeNameOrClassName) {
-
-                    //todo: figure out how to handle this better
-                    if (is_array($typeNameOrClassName)) {
+                $record = Injector::inst()->get($recordClassName);
+                if (!$record || !$record instanceof DataObject) {
+                    return [];
+                }
+                $list = [];
+                $labels = $record->fieldLabels();
+                if (empty($incArray)) {
+                    $incArray = ['db'];
+                }
+                $fieldsOuterArray = [];
+                foreach ($incArray as $incType) {
+                    $fieldsOuterArray[$incType] = $record->config()->get($incType);
+                }
+                $listOfClassesSchema = $additionalSchema;
+                $listOfClassesSchema['grouped'] = false;
+                // Get configuration variables using config system
+                $classList = $this->getListOfClasses($listOfClassesSchema);
+                foreach ($fieldsOuterArray as $incType => $fields) {
+                    if (!is_array($fields) || empty($fields)) {
                         continue;
                     }
-                    if ($isRelField === false) {
-                    } else {
-                        if (!isset($classList[$typeNameOrClassName])) {
+                    $isRelField = $incType === 'db' || $incType === 'casting' ? false : true;
+                    foreach ($fields as $name => $typeNameOrClassName) {
+
+                        //todo: figure out how to handle this better
+                        if (is_array($typeNameOrClassName)) {
                             continue;
                         }
-                    }
-                    // Skip if field is in excluded_fields
-                    if (in_array($name, $this->excludedFields)) {
-                        continue;
-                    }
-
-                    // Skip if field is in excluded_class_field_combos for this class
-                    if (
-                        isset($this->excludedClassFieldCombos[$recordClassName]) &&
-                        in_array($name, $this->excludedClassFieldCombos[$recordClassName])
-                    ) {
-                        continue;
-                    }
-                    if ($isRelField === false) {
-                        $typeObject = $record->dbObject($name);
-
-                        // Skip if field type is in excluded_field_types
-                        if ($this->isExcludedFieldType($typeObject)) {
-                            continue;
-                        }
-                        // Skip if field type is not explicitly included when included_field_types is not empty
-                        if (!empty($this->includedFieldTypes) && !$this->isIncludedFieldType($typeObject)) {
-                            continue;
-                        }
-                    }
-
-                    // Skip if not explicitly included when included_fields is not empty
-                    if (!empty($this->includedFields) && !in_array($name, $this->includedFields)) {
-                        continue;
-                    }
-
-                    // Skip if not explicitly included when included_class_field_combos for this class is not empty
-                    if (
-                        isset($this->includedClassFieldCombos[$recordClassName]) &&
-                        !empty($this->includedClassFieldCombos[$recordClassName]) &&
-                        !in_array($name, $this->includedClassFieldCombos[$recordClassName])
-                    ) {
-                        continue;
-                    }
-                    $niceName = $labels[$name] ?? $name;
-                    $groupNameNice = $incType;
-                    if ($canGroup) {
-                        $groupNameNice = $groupNames[$incType] ?? $incType;
-                        if (!isset($list[$groupNameNice])) {
-                            $list[$groupNameNice] = [];
-                        }
-                    }
-                    if ($isRelField === false) {
-                        if ($canGroup) {
-                            $list[$groupNameNice][$name] = $niceName;
+                        if ($isRelField === false) {
                         } else {
-                            $list[$name] = $niceName;
+                            if (!isset($classList[$typeNameOrClassName])) {
+                                continue;
+                            }
                         }
-                    } elseif ($isSubGroup === false) {
-                        // todo: consider further fields in secondary classes
-                        $subFields = $this->getListOfFieldNames(
+                        // Skip if field is in excluded_fields
+                        if (in_array($name, $this->excludedFields)) {
+                            continue;
+                        }
 
-                            $typeNameOrClassName,
-                            ['db'],
-                            $additionalSchema,
-                            true
-                        );
-                        foreach ($subFields as $subFieldName => $subFieldLabel) {
-                            $relKey =  $name . '.' . $subFieldName;
-                            $relLabel =  $niceName . ' - ' . $subFieldLabel;
+                        // Skip if field is in excluded_class_field_combos for this class
+                        if (
+                            isset($this->excludedClassFieldCombos[$recordClassName]) &&
+                            in_array($name, $this->excludedClassFieldCombos[$recordClassName])
+                        ) {
+                            continue;
+                        }
+                        if ($isRelField === false) {
+                            $typeObject = $record->dbObject($name);
+
+                            // Skip if field type is in excluded_field_types
+                            if ($this->isExcludedFieldType($typeObject)) {
+                                continue;
+                            }
+                            // Skip if field type is not explicitly included when included_field_types is not empty
+                            if (!empty($this->includedFieldTypes) && !$this->isIncludedFieldType($typeObject)) {
+                                continue;
+                            }
+                        }
+
+                        // Skip if not explicitly included when included_fields is not empty
+                        if (!empty($this->includedFields) && !in_array($name, $this->includedFields)) {
+                            continue;
+                        }
+
+                        // Skip if not explicitly included when included_class_field_combos for this class is not empty
+                        if (
+                            isset($this->includedClassFieldCombos[$recordClassName]) &&
+                            !empty($this->includedClassFieldCombos[$recordClassName]) &&
+                            !in_array($name, $this->includedClassFieldCombos[$recordClassName])
+                        ) {
+                            continue;
+                        }
+                        $niceName = $labels[$name] ?? $name;
+                        $groupNameNice = $incType;
+                        if ($canGroup) {
+                            $groupNameNice = $groupNames[$incType] ?? $incType;
+                            if (!isset($list[$groupNameNice])) {
+                                $list[$groupNameNice] = [];
+                            }
+                        }
+                        if ($isRelField === false) {
                             if ($canGroup) {
-                                $list[$groupNameNice][$relKey] = $relLabel;
+                                $list[$groupNameNice][$name] = $niceName;
                             } else {
-                                $list[$relKey] = $relLabel;
+                                $list[$name] = $niceName;
+                            }
+                        } elseif ($isSubGroup === false) {
+                            // todo: consider further fields in secondary classes
+                            $subFields = $this->getListOfFieldNames(
+
+                                $typeNameOrClassName,
+                                ['db'],
+                                $additionalSchema,
+                                true
+                            );
+                            foreach ($subFields as $subFieldName => $subFieldLabel) {
+                                $relKey =  $name . '.' . $subFieldName;
+                                $relLabel =  $niceName . ' - ' . $subFieldLabel;
+                                if ($canGroup) {
+                                    $list[$groupNameNice][$relKey] = $relLabel;
+                                } else {
+                                    $list[$relKey] = $relLabel;
+                                }
                             }
                         }
                     }
                 }
-            }
-            if ($canGroup) {
-                ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
-                foreach ($list as &$subArray) {
-                    asort($subArray, SORT_NATURAL | SORT_FLAG_CASE);
+                if ($canGroup) {
+                    ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
+                    foreach ($list as &$subArray) {
+                        asort($subArray, SORT_NATURAL | SORT_FLAG_CASE);
+                    }
+                } else {
+                    asort($list, SORT_NATURAL | SORT_FLAG_CASE);
                 }
-            } else {
-                asort($list, SORT_NATURAL | SORT_FLAG_CASE);
+                unset($subArray); // prevent reference issues
+                $this->setCacheValue($cacheKey, $list);
+                self::$listOfFieldNames[$cacheKey] = $list;
             }
-            unset($subArray); // prevent reference issues
-            self::$listOfFieldNames[$cacheKey] = $list;
         }
         return self::$listOfFieldNames[$cacheKey];
     }
@@ -456,7 +483,8 @@ class ClassAndFieldInfo
         $field = $vars['field'];
         $obj = Injector::inst()->get($class);
         if ($obj && $obj->hasMethod('dbObject')) {
-            return $obj->dbObject($field);
+            $item = $obj->dbObject($field);
+            return $item;
         }
     }
 
@@ -496,5 +524,38 @@ class ClassAndFieldInfo
         }
         // both non-assoc: numeric merge
         return array_unique(array_merge($a, $b));
+    }
+
+    protected function setCacheValue(string $key, $value): void
+    {
+        $cache = $this->getCache();
+        if ($cache) {
+            $cache->set($key, serialize($value));
+        }
+    }
+
+    protected function getCacheValue(string $key): array|null
+    {
+        $cache = $this->getCache();
+        if ($cache && $cache->has($key)) {
+            $value = unserialize($cache->get($key));
+            return $value;
+        }
+        return null;
+    }
+
+    protected function getCache(): CacheInterface
+    {
+        return Injector::inst()->get(CacheInterface::class . '.ClassAndFieldInfoCache');
+    }
+
+    public static function flush(): void
+    {
+        self::$listOfClasses = [];
+        self::$listOfFieldNames = [];
+        $cache = Injector::inst()->get(CacheInterface::class . '.ClassAndFieldInfoCache');
+        if ($cache) {
+            $cache->clear();
+        }
     }
 }
