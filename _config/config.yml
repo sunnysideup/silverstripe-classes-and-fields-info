@@ -4,3 +4,4 @@ SilverStripe\Core\Injector\Injector:
     factory: SilverStripe\Core\Cache\CacheFactory
     constructor:
       namespace: "ClassAndFieldInfoCache"
+    defaultLifetime: 8640000 # 100 days - can be cleared wtih a flush

@@ -149,12 +149,14 @@ class ClassAndFieldInfo implements Flushable
 
     public function getListOfClasses(?array $additionalSchema = []): array
     {
-        $cacheKey = implode(
-            '-',
-            [
-                'C',
-                $additionalSchema ? $this->arrayToCacheKey($additionalSchema) : '',
-            ]
+        $cacheKey = $this->alphaNumeric(
+            implode(
+                '-',
+                [
+                    'C',
+                    $additionalSchema ? $this->arrayToCacheKey($additionalSchema) : '',
+                ]
+            )
         );
 
         if (!isset(self::$listOfClasses[$cacheKey])) {
@@ -282,15 +284,17 @@ class ClassAndFieldInfo implements Flushable
         ?array $additionalSchema = [],
         ?bool $isSubGroup = false
     ): array {
-        $cacheKey = implode(
-            '-',
-            [
-                'F',
-                $recordClassName,
-                implode('_', $incArray),
-                $additionalSchema ? $this->arrayToCacheKey($additionalSchema) : '',
-                $isSubGroup ? 'A' : 'B',
-            ]
+        $cacheKey = $this->alphaNumeric(
+            implode(
+                '-',
+                [
+                    'F',
+                    str_replace('\\', '-', $recordClassName),
+                    implode('_', $incArray),
+                    $additionalSchema ? $this->arrayToCacheKey($additionalSchema) : '',
+                    $isSubGroup ? 'A' : 'B',
+                ]
+            )
         );
         $this->addInclusionsAndExclusions($additionalSchema);
         if (!isset(self::$listOfFieldNames[$cacheKey])) {
@@ -574,5 +578,10 @@ class ClassAndFieldInfo implements Flushable
     {
         $this->sortArrayRecursive($data);
         return md5(serialize($data));
+    }
+
+    protected function alphaNumeric($string): string
+    {
+        return preg_replace('/[^a-zA-Z0-9]/', '-', $string);
     }
 }
