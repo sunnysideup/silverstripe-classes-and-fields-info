@@ -153,7 +153,7 @@ class ClassAndFieldInfo implements Flushable
             '-',
             [
                 'C',
-                $additionalSchema ? serialize($additionalSchema) : '',
+                $additionalSchema ? $this->arrayToCacheKey($additionalSchema) : '',
             ]
         );
 
@@ -288,8 +288,8 @@ class ClassAndFieldInfo implements Flushable
                 'F',
                 $recordClassName,
                 implode('_', $incArray),
-                $additionalSchema ? serialize($additionalSchema) : '',
-                $isSubGroup ? 'true' : 'false',
+                $additionalSchema ? $this->arrayToCacheKey($additionalSchema) : '',
+                $isSubGroup ? 'A' : 'B',
             ]
         );
         $this->addInclusionsAndExclusions($additionalSchema);
@@ -557,5 +557,22 @@ class ClassAndFieldInfo implements Flushable
         if ($cache) {
             $cache->clear();
         }
+    }
+
+
+    protected function sortArrayRecursive(array &$array): void
+    {
+        ksort($array);
+        foreach ($array as &$value) {
+            if (is_array($value)) {
+                $this->sortArrayRecursive($value);
+            }
+        }
+    }
+
+    protected function arrayToCacheKey(array $data): string
+    {
+        $this->sortArrayRecursive($data);
+        return md5(serialize($data));
     }
 }
