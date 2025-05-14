@@ -18,6 +18,7 @@ use SilverStripe\Security\LoginAttempt;
 use SilverStripe\Security\MemberPassword;
 use SilverStripe\Security\Permission;
 use SilverStripe\Security\RememberLoginHash;
+use SilverStripe\SiteConfig\SiteConfig;
 use SilverStripe\UserForms\Model\EditableFormField;
 use SilverStripe\Versioned\ChangeSet;
 use SilverStripe\Versioned\ChangeSetItem;
@@ -39,6 +40,7 @@ class ClassAndFieldInfo implements Flushable
             RememberLoginHash::class,
             MemberPassword::class,
             Permission::class,
+            SiteConfig::class,
         ],
         'included_models' => [],
         'excluded_models_and_descendants' => [
