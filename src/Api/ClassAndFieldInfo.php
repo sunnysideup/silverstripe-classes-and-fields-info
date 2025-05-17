@@ -6,6 +6,7 @@ namespace Sunnysideup\ClassesAndFieldsInfo\Api;
 
 use Psr\SimpleCache\CacheInterface;
 use DNADesign\Elemental\Models\ElementalArea;
+use SilverStripe\Assets\File;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\ClassInfo;
 use SilverStripe\Core\Config\Configurable;
@@ -74,6 +75,21 @@ class ClassAndFieldInfo implements Flushable
         'belongs_many_many' => 'Has Many (and vice versa)',
     ];
 
+    /**
+     * You can set alternative names for the field grouping names. Like this:
+     * ClassName::class => 'MyClass Name'
+     * By using three digits followed by an underscore, you can force the order of the field groups.
+     * For example, you can use 010_Pages to force the Pages group to be first.
+     * This is useful if you have a lot of field groups and you want to force the order.
+     * You can also use anything that starts with two Zs e.g. zzz_ to force it to be last.
+     * e.g. MyClass::class => 'zzz_MyClass' will be last in the list.
+     * @var array
+     */
+    private static array $field_grouping_names_alternatives = [
+        SiteTree::class => '010_Pages', // little trick to get the pages to show first.
+        File::class => '020_Files', // little trick to get the pages to show first.
+    ];
+
     protected $onlyIncludeModelsWithCmsEditLink = true;
     protected $onlyIncludeModelsWithCanCreate = true;
     protected $onlyIncludeModelsWithCanEdit = true;
@@ -82,7 +98,6 @@ class ClassAndFieldInfo implements Flushable
     protected $includedModels = [];
     protected $excludedModelsAndDescendants = [];
     protected $includedModelsAndDescendants = [];
-
     protected $includedFields = [];
     protected $excludedFields = [];
     protected $excludedFieldTypes = [];
@@ -160,7 +175,6 @@ class ClassAndFieldInfo implements Flushable
                 ]
             )
         );
-
         if (!isset(self::$listOfClasses[$cacheKey])) {
             $cachedValue = $this->getCacheValue($cacheKey);
             if ($cachedValue !== null) {
@@ -241,15 +255,7 @@ class ClassAndFieldInfo implements Flushable
                         $list[$class] = $name;
                     }
                 }
-                if ($this->grouped) {
-                    ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
-                    foreach ($list as &$subArray) {
-                        asort($subArray, SORT_NATURAL | SORT_FLAG_CASE);
-                    }
-                } else {
-                    asort($list, SORT_NATURAL | SORT_FLAG_CASE);
-                }
-                unset($subArray); // prevent reference issues
+                $this->sortListOfClasses($list);
                 $this->setCacheValue($cacheKey, $list);
                 self::$listOfClasses[$cacheKey] = $list;
             }
@@ -257,14 +263,43 @@ class ClassAndFieldInfo implements Flushable
         return self::$listOfClasses[$cacheKey];
     }
 
+    protected function sortListOfClasses(array &$list): array
+    {
+        if ($this->grouped) {
+            ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
+            foreach ($list as &$subArray) {
+                asort($subArray, SORT_NATURAL | SORT_FLAG_CASE);
+            }
+            ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
+            $sorted = [];
+            foreach ($list as $key => $value) {
+                $key = preg_replace('/^((zz.|[0-9]{3})_)/', '', $key);
+                $sorted[$key] = $value;
+            }
+            $list = $sorted;
+            unset($subArray); // prevent reference issues
+        } else {
+            asort($list, SORT_NATURAL | SORT_FLAG_CASE);
+        }
+        return $list;
+    }
+
     public function getDirectSubclassOfDataObjectName(string $className, ?string $notGroupedName = 'Not Grouped'): ?string
     {
         $rootParent = $this->getDirectSubclassOfDataObject($className);
-        if ($rootParent && $rootParent !== $className) {
-            $obj = Injector::inst()->get($rootParent);
-            return $obj->i18n_plural_name();
+        $subClasses = ClassInfo::subclassesFor($className, false);
+        if ($rootParent && $rootParent !== $className || count($subClasses) > 1) {
+            $transformations = $this->config()->get('field_grouping_names_alternatives');
+            if (isset($transformations[$rootParent])) {
+                $answer = $transformations[$rootParent];
+            } else {
+                $obj = Injector::inst()->get($rootParent);
+                $answer = $obj->i18n_plural_name();
+            }
+            return $answer;
         }
-        return $notGroupedName;
+        // sort last...
+        return 'zzz_' . $notGroupedName;
     }
 
     public function getDirectSubclassOfDataObject(string $className): string
@@ -286,6 +321,7 @@ class ClassAndFieldInfo implements Flushable
         ?array $additionalSchema = [],
         ?bool $isSubGroup = false
     ): array {
+        $alreadyDone = [];
         $cacheKey = $this->alphaNumeric(
             implode(
                 '-',
@@ -339,8 +375,10 @@ class ClassAndFieldInfo implements Flushable
                         if (is_array($typeNameOrClassName)) {
                             continue;
                         }
-                        if ($isRelField === false) {
-                        } else {
+                        if (isset($alreadyDone[$name])) {
+                            continue;
+                        }
+                        if ($isRelField === true) {
                             if (!isset($classList[$typeNameOrClassName])) {
                                 continue;
                             }
@@ -383,6 +421,7 @@ class ClassAndFieldInfo implements Flushable
                         ) {
                             continue;
                         }
+                        $alreadyDone[$name] = true;
                         $niceName = $labels[$name] ?? $name;
                         $groupNameNice = $incType;
                         if ($canGroup) {
