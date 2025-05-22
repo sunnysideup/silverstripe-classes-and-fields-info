@@ -63,6 +63,7 @@ class ClassAndFieldInfo implements Flushable
         'excluded_class_field_combos' => [],
         'included_class_field_combos' => [],
         'grouped' => false,
+        'add_descriptions' => false,
     ];
 
     private static array $field_grouping_names = [
@@ -105,6 +106,7 @@ class ClassAndFieldInfo implements Flushable
     protected $excludedClassFieldCombos = [];
     protected $includedClassFieldCombos = [];
     protected $grouped = false;
+    protected $addDescriptions = false;
 
     /**
      * Converts field types like SilverStripe\ORM\FieldType\Varchar or Varchar(255) to
@@ -226,9 +228,11 @@ class ClassAndFieldInfo implements Flushable
                         continue;
                     }
                     $name = $obj->i18n_singular_name();
-                    $description = $obj->Config()->get('description');
-                    if ($description) {
-                        $name .= ' - ' . $description;
+                    if ($this->addDescriptions) {
+                        $description = $obj->Config()->get('description');
+                        if ($description) {
+                            $name .= ' - ' . $description;
+                        }
                     }
                     $straightNames[$class] = $name;
                     $name = trim($name);
