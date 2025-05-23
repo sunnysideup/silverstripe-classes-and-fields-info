@@ -507,13 +507,12 @@ class ClassAndFieldInfo implements Flushable
             return true; // If no included types specified, all non-excluded types are included
         }
 
+        $shortName = self::standard_short_field_type_name($typeObject);
+        $shorterName =  str_starts_with($shortName, 'DB') ? substr($shortName, 2) : $shortName;
         foreach ($this->includedFieldTypes as $includedType) {
             if ($typeObject instanceof $includedType) {
                 return true;
             }
-            $shortName = self::standard_short_field_type_name($typeObject);
-            $shorterName =  str_starts_with($shortName, 'DB') ? substr($shortName, 2) : $shortName;
-
             if ($shortName === $includedType || $shorterName === $includedType) {
                 return true;
             }
