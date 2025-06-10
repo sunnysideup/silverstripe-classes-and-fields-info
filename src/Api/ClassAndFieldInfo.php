@@ -126,9 +126,9 @@ class ClassAndFieldInfo implements Flushable
             $type = ClassInfo::shortName($type);
         }
         // anything up to (
-        $type = preg_replace('/\(.*$/', '', $type);
+        $type = preg_replace('/\(.*$/', '', (string) $type);
         if ($shorter) {
-            $type = preg_replace('/^DB/', '', $type);
+            $type = preg_replace('/^DB/', '', (string) $type);
         }
         return $type;
     }
