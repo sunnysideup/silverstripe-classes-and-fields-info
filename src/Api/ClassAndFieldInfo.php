@@ -540,12 +540,19 @@ class ClassAndFieldInfo implements Flushable
     {
         $parts = explode('.', $dotNotationField);
         $lastObj = $obj;
+        if ($lastObj === null || !($lastObj instanceof DataObject)) {
+            user_error('Cannot resolve field from chain: ' . $dotNotationField . ' as the starting object is not a DataObject', E_USER_WARNING);
+            return ['class' => '', 'field' => ''];
+        }
         foreach ($parts as $i => $part) {
 
             if ($i === count($parts) - 1) {
                 return ['class' => get_class($lastObj), 'field' => $part];
             }
-            $lastObj = $lastObj->$part();
+            $newObject = $lastObj->$part();
+            if ($newObject) {
+                $lastObj = $newObject;
+            }
         }
         return ['class' => get_class($lastObj), 'field' => end($parts)];
     }
