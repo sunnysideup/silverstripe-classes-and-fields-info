@@ -63,6 +63,7 @@ class ClassAndFieldInfo implements Flushable
         'excluded_class_field_combos' => [],
         'included_class_field_combos' => [],
         'grouped' => false,
+        'minimum_class_count' => 0,
         'add_descriptions' => false,
     ];
 
@@ -91,22 +92,23 @@ class ClassAndFieldInfo implements Flushable
         File::class => '020_Files', // little trick to get the pages to show first.
     ];
 
-    protected $onlyIncludeModelsWithCmsEditLink = true;
-    protected $onlyIncludeModelsWithCanCreate = true;
-    protected $onlyIncludeModelsWithCanEdit = true;
-    protected $onlyIncludeModelsWithRecords = true;
-    protected $excludedModels = [];
-    protected $includedModels = [];
-    protected $excludedModelsAndDescendants = [];
-    protected $includedModelsAndDescendants = [];
-    protected $includedFields = [];
-    protected $excludedFields = [];
-    protected $excludedFieldTypes = [];
-    protected $includedFieldTypes = [];
-    protected $excludedClassFieldCombos = [];
-    protected $includedClassFieldCombos = [];
-    protected $grouped = false;
-    protected $addDescriptions = false;
+    protected bool $onlyIncludeModelsWithCmsEditLink = true;
+    protected bool $onlyIncludeModelsWithCanCreate = true;
+    protected bool $onlyIncludeModelsWithCanEdit = true;
+    protected bool $onlyIncludeModelsWithRecords = true;
+    protected array $excludedModels = [];
+    protected array $includedModels = [];
+    protected array $excludedModelsAndDescendants = [];
+    protected array $includedModelsAndDescendants = [];
+    protected array $includedFields = [];
+    protected array $excludedFields = [];
+    protected array $excludedFieldTypes = [];
+    protected array $includedFieldTypes = [];
+    protected array $excludedClassFieldCombos = [];
+    protected array $includedClassFieldCombos = [];
+    protected bool $grouped = false;
+    protected int $minimumClassCount = 0;
+    protected bool $addDescriptions = false;
 
     /**
      * Converts field types like SilverStripe\ORM\FieldType\Varchar or Varchar(255) to
@@ -221,7 +223,8 @@ class ClassAndFieldInfo implements Flushable
                         continue;
                     }
                     $count = $class::get()->filter(['ClassName' => $class])->count();
-                    if ($count === 0) {
+                    $minCount = $this->minimumClassCount ?? 0;
+                    if ($count <= $minCount) {
                         continue;
                     }
                     if ($this->onlyIncludeModelsWithCmsEditLink && !$obj->hasMethod('CMSEditLink')) {
@@ -241,6 +244,7 @@ class ClassAndFieldInfo implements Flushable
                     $name .= ' (records: ' . $count . ')';
                     if ($this->grouped) {
                         $rootParentName = $this->getDirectSubclassOfDataObjectName($class);
+
                         if (! isset($list[$rootParentName])) {
                             $list[$rootParentName] = [];
                         }
