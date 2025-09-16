@@ -367,6 +367,13 @@ class ClassAndFieldInfo implements Flushable
                 $fieldsOuterArray = [];
                 foreach ($incArray as $incType) {
                     $fieldsOuterArray[$incType] = $record->config()->get($incType);
+                    if ($incType === 'db') {
+                        $fieldsOuterArray[$incType] = $fieldsOuterArray[$incType] + [
+                            'ID' => 'Int',
+                            'Created' => 'SS_Datetime',
+                            'LastEdited' => 'SS_Datetime',
+                        ];
+                    }
                 }
                 $listOfClassesSchema = $additionalSchema;
                 $listOfClassesSchema['grouped'] = false;
