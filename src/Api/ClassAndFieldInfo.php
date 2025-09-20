@@ -410,7 +410,7 @@ class ClassAndFieldInfo implements Flushable
                         ) {
                             continue;
                         }
-                        if ($isRelField === false) {
+                        if ((bool) $isRelField === false) {
                             $typeObject = $record->dbObject($name);
 
                             // Skip if field type is in excluded_field_types
@@ -445,13 +445,13 @@ class ClassAndFieldInfo implements Flushable
                                 $list[$groupNameNice] = [];
                             }
                         }
-                        if ($isRelField === false) {
+                        if ((bool) $isRelField === false) {
                             if ($canGroup) {
                                 $list[$groupNameNice][$name] = $niceName;
                             } else {
                                 $list[$name] = $niceName;
                             }
-                        } elseif ($isSubGroup === false) {
+                        } elseif ((bool) $isSubGroup === false) {
                             // todo: consider further fields in secondary classes
                             $subFields = $this->getListOfFieldNames(
 
