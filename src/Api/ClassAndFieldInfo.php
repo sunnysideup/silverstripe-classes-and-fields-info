@@ -29,6 +29,8 @@ class ClassAndFieldInfo implements Flushable
     use Injectable;
     use Configurable;
 
+    private static $not_grouped_name = 'Other';
+
     private static array $class_and_field_inclusion_exclusion_schema = [
         'only_include_models_with_cms_edit_link' => false,
         'only_include_models_with_can_create' => false,
@@ -65,16 +67,17 @@ class ClassAndFieldInfo implements Flushable
         'grouped' => false,
         'minimum_class_count' => 0,
         'add_descriptions' => false,
+        'for_relations_only_include_field_names' => false,
     ];
 
     private static array $field_grouping_names = [
         'db' => 'Database Fields',
         'casting' => 'Other Fields',
-        'belongs' => 'Has One',
-        'has_one' => 'Has One',
-        'has_many' => 'Has Many',
-        'many_many' => 'Has Many (and vice versa)',
-        'belongs_many_many' => 'Has Many (and vice versa)',
+        'belongs' => 'Has One Related Record',
+        'has_one' => 'Has One Related Record',
+        'has_many' => 'Has Many Related Records',
+        'many_many' => 'Has Many (both ways) Related Records',
+        'belongs_many_many' => 'Has Many (both ways) Related Records',
     ];
 
     /**
@@ -107,6 +110,7 @@ class ClassAndFieldInfo implements Flushable
     protected array $excludedClassFieldCombos = [];
     protected array $includedClassFieldCombos = [];
     protected bool $grouped = false;
+    protected bool $forRelationsOnlyIncludeFieldNames = false;
     protected int $minimumClassCount = 0;
     protected bool $addDescriptions = false;
 
@@ -292,8 +296,11 @@ class ClassAndFieldInfo implements Flushable
         return $list;
     }
 
-    public function getDirectSubclassOfDataObjectName(string $className, ?string $notGroupedName = 'Not Grouped'): ?string
+    public function getDirectSubclassOfDataObjectName(string $className, ?string $notGroupedName = null): ?string
     {
+        if ($notGroupedName === null) {
+            $notGroupedName = $this->config()->get('not_grouped_name');
+        }
         $rootParent = $this->getDirectSubclassOfDataObject($className);
         $subClasses = ClassInfo::subclassesFor($className, false);
         if ($rootParent && $rootParent !== $className || count($subClasses) > 1) {
@@ -385,16 +392,17 @@ class ClassAndFieldInfo implements Flushable
                     }
                     $isRelField = $incType === 'db' || $incType === 'casting' ? false : true;
                     foreach ($fields as $name => $typeNameOrClassName) {
-
-                        //todo: figure out how to handle this better
+                        // @todo  implement many-many-through!
                         if (is_array($typeNameOrClassName)) {
                             continue;
                         }
+                        $typeNameOrClassNameWithoutDot = explode('.', (string) $typeNameOrClassName)[0];
                         if (isset($alreadyDone[$name])) {
                             continue;
                         }
                         if ($isRelField === true) {
-                            if (!isset($classList[$typeNameOrClassName])) {
+                            if (!isset($classList[$typeNameOrClassNameWithoutDot])) {
+                                // echo 'Skipping relation field ' . $name . ' of type ' . $typeNameOrClassNameWithoutDot . ' as class does not exist.' . PHP_EOL;
                                 continue;
                             }
                         }
@@ -453,20 +461,29 @@ class ClassAndFieldInfo implements Flushable
                             }
                         } elseif ((bool) $isSubGroup === false) {
                             // todo: consider further fields in secondary classes
-                            $subFields = $this->getListOfFieldNames(
 
-                                $typeNameOrClassName,
-                                ['db'],
-                                $additionalSchema,
-                                true
-                            );
-                            foreach ($subFields as $subFieldName => $subFieldLabel) {
-                                $relKey =  $name . '.' . $subFieldName;
-                                $relLabel =  $niceName . ' - ' . $subFieldLabel;
+                            if (! empty($this->forRelationsOnlyIncludeFieldNames)) {
                                 if ($canGroup) {
-                                    $list[$groupNameNice][$relKey] = $relLabel;
+                                    $list[$groupNameNice][$name] = $niceName;
                                 } else {
-                                    $list[$relKey] = $relLabel;
+                                    $list[$name] = $niceName;
+                                }
+                            } else {
+                                $subFields = $this->getListOfFieldNames(
+
+                                    $typeNameOrClassNameWithoutDot,
+                                    ['db'],
+                                    $additionalSchema,
+                                    true
+                                );
+                                foreach ($subFields as $subFieldName => $subFieldLabel) {
+                                    $relKey =  $name . '.' . $subFieldName;
+                                    $relLabel =  $niceName . ' - ' . $subFieldLabel;
+                                    if ($canGroup) {
+                                        $list[$groupNameNice][$relKey] = $relLabel;
+                                    } else {
+                                        $list[$relKey] = $relLabel;
+                                    }
                                 }
                             }
                         }
