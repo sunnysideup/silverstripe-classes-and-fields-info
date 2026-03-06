@@ -183,12 +183,12 @@ class ClassAndFieldInfo implements Flushable
                 ]
             )
         );
-        if (!isset(self::$listOfClasses[$cacheKey])) {
+        if (!array_key_exists($cacheKey, self::$listOfClasses)) {
             $cachedValue = $this->getCacheValue($cacheKey);
             if ($cachedValue !== null) {
                 self::$listOfClasses[$cacheKey] = $cachedValue;
             }
-            if (!isset(self::$listOfClasses[$cacheKey])) {
+            if (!array_key_exists($cacheKey, self::$listOfClasses)) {
                 $this->addInclusionsAndExclusions($additionalSchema);
                 $list = [];
                 $straightNames = [];
@@ -350,12 +350,12 @@ class ClassAndFieldInfo implements Flushable
             )
         );
         $this->addInclusionsAndExclusions($additionalSchema);
-        if (!isset(self::$listOfFieldNames[$cacheKey])) {
+        if (!array_key_exists($cacheKey, self::$listOfFieldNames)) {
             $cachedValue = $this->getCacheValue($cacheKey);
             if ($cachedValue !== null) {
                 self::$listOfFieldNames[$cacheKey] = $cachedValue;
             }
-            if (!isset(self::$listOfFieldNames[$cacheKey])) {
+            if (!array_key_exists($cacheKey, self::$listOfFieldNames)) {
                 self::$listOfFieldNames[$cacheKey] = [];
                 $canGroup = $this->grouped && $isSubGroup === false;
                 $groupNames = [];
