@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Sunnysideup\ClassesAndFieldsInfo\Api;
 
 use Psr\SimpleCache\CacheInterface;
-use DNADesign\Elemental\Models\ElementalArea;
 use SilverStripe\Assets\File;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\ClassInfo;
@@ -96,22 +95,39 @@ class ClassAndFieldInfo implements Flushable
     ];
 
     protected bool $onlyIncludeModelsWithCmsEditLink = true;
+
     protected bool $onlyIncludeModelsWithCanCreate = true;
+
     protected bool $onlyIncludeModelsWithCanEdit = true;
+
     protected bool $onlyIncludeModelsWithRecords = true;
+
     protected array $excludedModels = [];
+
     protected array $includedModels = [];
+
     protected array $excludedModelsAndDescendants = [];
+
     protected array $includedModelsAndDescendants = [];
+
     protected array $includedFields = [];
+
     protected array $excludedFields = [];
+
     protected array $excludedFieldTypes = [];
+
     protected array $includedFieldTypes = [];
+
     protected array $excludedClassFieldCombos = [];
+
     protected array $includedClassFieldCombos = [];
+
     protected bool $grouped = false;
+
     protected bool $forRelationsOnlyIncludeFieldNames = false;
+
     protected int $minimumClassCount = 0;
+
     protected bool $addDescriptions = false;
 
     /**
@@ -123,19 +139,18 @@ class ClassAndFieldInfo implements Flushable
      */
     public static function standard_short_field_type_name($typeNameOrObject, ?bool $shorter = false): string
     {
-        if (is_object($typeNameOrObject)) {
-            $type = get_class($typeNameOrObject);
-        } else {
-            $type = $typeNameOrObject;
-        }
+        $type = is_object($typeNameOrObject) ? $typeNameOrObject::class : $typeNameOrObject;
+
         if ($type && class_exists($type)) {
             $type = ClassInfo::shortName($type);
         }
+
         // anything up to (
         $type = preg_replace('/\(.*$/', '', (string) $type);
         if ($shorter) {
             $type = preg_replace('/^DB/', '', (string) $type);
         }
+
         return $type;
     }
 
@@ -148,24 +163,22 @@ class ClassAndFieldInfo implements Flushable
 
     protected function addInclusionsAndExclusions(array $schema): void
     {
-        if (empty($schema)) {
+        if ($schema === []) {
             return;
         }
+
         foreach ($schema as $key => $value) {
             $field = $this->snakeToCamel($key);
             if (
                 !property_exists($this, $field)
             ) {
                 user_error(
-                    'Schema Error: ' . $field . ' does not exist in ' . __CLASS__,
+                    'Schema Error: ' . $field . ' does not exist in ' . self::class,
                     E_USER_WARNING
                 );
             }
-            if (is_array($this->$field) && is_array($value)) {
-                $this->$field = $this->mergeSmart($this->$field, $value);
-            } else {
-                $this->$field = $value;
-            }
+
+            $this->$field = is_array($this->$field) && is_array($value) ? $this->mergeSmart($this->$field, $value) : $value;
         }
     }
 
@@ -188,6 +201,7 @@ class ClassAndFieldInfo implements Flushable
             if ($cachedValue !== null) {
                 self::$listOfClasses[$cacheKey] = $cachedValue;
             }
+
             if (!array_key_exists($cacheKey, self::$listOfClasses)) {
                 $this->addInclusionsAndExclusions($additionalSchema);
                 $list = [];
@@ -197,43 +211,53 @@ class ClassAndFieldInfo implements Flushable
                     if (in_array($class, $this->excludedModels)) {
                         continue;
                     }
+
                     if (in_array($class, $this->excludedModelsAndDescendants)) {
                         continue;
                     }
+
                     foreach ($this->excludedModelsAndDescendants as $excludedModelParent) {
                         if (is_subclass_of($class, $excludedModelParent)) {
                             continue 2;
                         }
                     }
+
                     if (!empty($includedModels) && !in_array($class, $this->includedModels)) {
                         continue;
                     }
-                    if (count($this->includedModelsAndDescendants)) {
+
+                    if ($this->includedModelsAndDescendants !== []) {
                         foreach ($this->includedModelsAndDescendants as $includedModelParent) {
                             if (!is_subclass_of($class, $includedModelParent)) {
                                 continue 2;
                             }
                         }
                     }
+
                     // get the name
                     $obj = Injector::inst()->get($class);
                     if (!$obj->canView()) {
                         continue;
                     }
+
                     if ($this->onlyIncludeModelsWithCanCreate && !$obj->canCreate()) {
                         continue;
                     }
+
                     if ($this->onlyIncludeModelsWithCanEdit && !$obj->canEdit()) {
                         continue;
                     }
+
                     $count = $class::get()->filter(['ClassName' => $class])->count();
                     $minCount = $this->minimumClassCount ?? 0;
                     if ($count <= $minCount) {
                         continue;
                     }
+
                     if ($this->onlyIncludeModelsWithCmsEditLink && !$obj->hasMethod('CMSEditLink')) {
                         continue;
                     }
+
                     $name = $obj->i18n_singular_name();
                     if ($this->addDescriptions) {
                         $description = $obj->Config()->get('description');
@@ -241,8 +265,9 @@ class ClassAndFieldInfo implements Flushable
                             $name .= ' - ' . $description;
                         }
                     }
+
                     $straightNames[$class] = $name;
-                    $name = trim($name);
+                    $name = trim((string) $name);
                     // add name to list
 
                     $name .= ' (records: ' . $count . ')';
@@ -252,11 +277,13 @@ class ClassAndFieldInfo implements Flushable
                         if (! isset($list[$rootParentName])) {
                             $list[$rootParentName] = [];
                         }
+
                         $otherClass = array_search($name, $straightNames = [], true);
                         if ($otherClass) {
                             $list[$rootParentName][$otherClass] = $name . ' - disambiguation class name: ' . $otherClass . ')';
                             $name .= ' - disambiguation class name: ' . $class . ')';
                         }
+
                         $list[$rootParentName][$class] = $name;
                     } else {
                         $otherClass = array_search($name, $straightNames, true);
@@ -264,14 +291,17 @@ class ClassAndFieldInfo implements Flushable
                             $list[$otherClass] = $name . ' - disambiguation class name: ' . $otherClass . ')';;
                             $name .= ' - disambiguation class name: ' . $class;
                         }
+
                         $list[$class] = $name;
                     }
                 }
+
                 $this->sortListOfClasses($list);
                 $this->setCacheValue($cacheKey, $list);
                 self::$listOfClasses[$cacheKey] = $list;
             }
         }
+
         return self::$listOfClasses[$cacheKey];
     }
 
@@ -282,17 +312,20 @@ class ClassAndFieldInfo implements Flushable
             foreach ($list as &$subArray) {
                 asort($subArray, SORT_NATURAL | SORT_FLAG_CASE);
             }
+
             ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
             $sorted = [];
             foreach ($list as $key => $value) {
-                $key = preg_replace('/^((zz.|[0-9]{3})_)/', '', $key);
+                $key = preg_replace('/^((zz.|\d{3})_)/', '', (string) $key);
                 $sorted[$key] = $value;
             }
+
             $list = $sorted;
             unset($subArray); // prevent reference issues
         } else {
             asort($list, SORT_NATURAL | SORT_FLAG_CASE);
         }
+
         return $list;
     }
 
@@ -301,6 +334,7 @@ class ClassAndFieldInfo implements Flushable
         if ($notGroupedName === null) {
             $notGroupedName = $this->config()->get('not_grouped_name');
         }
+
         $rootParent = $this->getDirectSubclassOfDataObject($className);
         $subClasses = ClassInfo::subclassesFor($className, false);
         if ($rootParent && $rootParent !== $className || count($subClasses) > 1) {
@@ -311,8 +345,10 @@ class ClassAndFieldInfo implements Flushable
                 $obj = Injector::inst()->get($rootParent);
                 $answer = $obj->i18n_plural_name();
             }
+
             return $answer;
         }
+
         // sort last...
         return 'zzz_' . $notGroupedName;
     }
@@ -325,6 +361,7 @@ class ClassAndFieldInfo implements Flushable
                 return $ancestor;
             }
         }
+
         return $className;
     }
 
@@ -355,6 +392,7 @@ class ClassAndFieldInfo implements Flushable
             if ($cachedValue !== null) {
                 self::$listOfFieldNames[$cacheKey] = $cachedValue;
             }
+
             if (!array_key_exists($cacheKey, self::$listOfFieldNames)) {
                 self::$listOfFieldNames[$cacheKey] = [];
                 $canGroup = $this->grouped && $isSubGroup === false;
@@ -362,50 +400,56 @@ class ClassAndFieldInfo implements Flushable
                 if ($canGroup) {
                     $groupNames = $this->config()->get('field_grouping_names');
                 }
+
                 $record = Injector::inst()->get($recordClassName);
                 if (!$record || !$record instanceof DataObject) {
                     return [];
                 }
+
                 $list = [];
                 $labels = $record->fieldLabels();
-                if (empty($incArray)) {
+                if ($incArray === null || $incArray === []) {
                     $incArray = ['db'];
                 }
+
                 $fieldsOuterArray = [];
                 foreach ($incArray as $incType) {
                     $fieldsOuterArray[$incType] = $record->config()->get($incType);
                     if ($incType === 'db') {
-                        $fieldsOuterArray[$incType] = $fieldsOuterArray[$incType] + [
+                        $fieldsOuterArray[$incType] += [
                             'ID' => 'Int',
                             'Created' => 'SS_Datetime',
                             'LastEdited' => 'SS_Datetime',
                         ];
                     }
                 }
+
                 $listOfClassesSchema = $additionalSchema;
                 $listOfClassesSchema['grouped'] = false;
                 // Get configuration variables using config system
                 $classList = $this->getListOfClasses($listOfClassesSchema);
                 foreach ($fieldsOuterArray as $incType => $fields) {
-                    if (!is_array($fields) || empty($fields)) {
+                    if (!is_array($fields) || $fields === []) {
                         continue;
                     }
+
                     $isRelField = $incType === 'db' || $incType === 'casting' ? false : true;
                     foreach ($fields as $name => $typeNameOrClassName) {
                         // @todo  implement many-many-through!
                         if (is_array($typeNameOrClassName)) {
                             continue;
                         }
+
                         $typeNameOrClassNameWithoutDot = explode('.', (string) $typeNameOrClassName)[0];
                         if (isset($alreadyDone[$name])) {
                             continue;
                         }
-                        if ($isRelField === true) {
-                            if (!isset($classList[$typeNameOrClassNameWithoutDot])) {
-                                // echo 'Skipping relation field ' . $name . ' of type ' . $typeNameOrClassNameWithoutDot . ' as class does not exist.' . PHP_EOL;
-                                continue;
-                            }
+
+                        if ($isRelField === true && !isset($classList[$typeNameOrClassNameWithoutDot])) {
+                            // echo 'Skipping relation field ' . $name . ' of type ' . $typeNameOrClassNameWithoutDot . ' as class does not exist.' . PHP_EOL;
+                            continue;
                         }
+
                         // Skip if field is in excluded_fields
                         if (in_array($name, $this->excludedFields)) {
                             continue;
@@ -418,6 +462,7 @@ class ClassAndFieldInfo implements Flushable
                         ) {
                             continue;
                         }
+
                         if ((bool) $isRelField === false) {
                             $typeObject = $record->dbObject($name);
 
@@ -425,14 +470,15 @@ class ClassAndFieldInfo implements Flushable
                             if ($this->isExcludedFieldType($typeObject)) {
                                 continue;
                             }
+
                             // Skip if field type is not explicitly included when included_field_types is not empty
-                            if (!empty($this->includedFieldTypes) && !$this->isIncludedFieldType($typeObject)) {
+                            if ($this->includedFieldTypes !== [] && !$this->isIncludedFieldType($typeObject)) {
                                 continue;
                             }
                         }
 
                         // Skip if not explicitly included when included_fields is not empty
-                        if (!empty($this->includedFields) && !in_array($name, $this->includedFields)) {
+                        if ($this->includedFields !== [] && !in_array($name, $this->includedFields)) {
                             continue;
                         }
 
@@ -444,6 +490,7 @@ class ClassAndFieldInfo implements Flushable
                         ) {
                             continue;
                         }
+
                         $alreadyDone[$name] = true;
                         $niceName = $labels[$name] ?? $name;
                         $groupNameNice = $incType;
@@ -453,6 +500,7 @@ class ClassAndFieldInfo implements Flushable
                                 $list[$groupNameNice] = [];
                             }
                         }
+
                         if ((bool) $isRelField === false) {
                             if ($canGroup) {
                                 $list[$groupNameNice][$name] = $niceName;
@@ -462,7 +510,7 @@ class ClassAndFieldInfo implements Flushable
                         } elseif ((bool) $isSubGroup === false) {
                             // todo: consider further fields in secondary classes
 
-                            if (! empty($this->forRelationsOnlyIncludeFieldNames)) {
+                            if ($this->forRelationsOnlyIncludeFieldNames) {
                                 if ($canGroup) {
                                     $list[$groupNameNice][$name] = $niceName;
                                 } else {
@@ -489,6 +537,7 @@ class ClassAndFieldInfo implements Flushable
                         }
                     }
                 }
+
                 if ($canGroup) {
                     ksort($list, SORT_NATURAL | SORT_FLAG_CASE);
                     foreach ($list as &$subArray) {
@@ -497,11 +546,13 @@ class ClassAndFieldInfo implements Flushable
                 } else {
                     asort($list, SORT_NATURAL | SORT_FLAG_CASE);
                 }
+
                 unset($subArray); // prevent reference issues
                 $this->setCacheValue($cacheKey, $list);
                 self::$listOfFieldNames[$cacheKey] = $list;
             }
         }
+
         return self::$listOfFieldNames[$cacheKey];
     }
 
@@ -518,11 +569,13 @@ class ClassAndFieldInfo implements Flushable
             if ($typeObject instanceof $excludedType) {
                 return true;
             }
+
             $shortName = self::standard_short_field_type_name($typeObject);
             if ($shortName === $excludedType) {
                 return true;
             }
         }
+
         return false;
     }
 
@@ -535,7 +588,7 @@ class ClassAndFieldInfo implements Flushable
      */
     protected function isIncludedFieldType($typeObject): bool
     {
-        if (empty($this->includedFieldTypes)) {
+        if ($this->includedFieldTypes === []) {
             return true; // If no included types specified, all non-excluded types are included
         }
 
@@ -545,10 +598,12 @@ class ClassAndFieldInfo implements Flushable
             if ($typeObject instanceof $includedType) {
                 return true;
             }
+
             if ($shortName === $includedType || $shorterName === $includedType) {
                 return true;
             }
         }
+
         return false;
     }
 
@@ -572,17 +627,20 @@ class ClassAndFieldInfo implements Flushable
             user_error('Cannot resolve field from chain: ' . $dotNotationField . ' as the starting object is not a DataObject', E_USER_WARNING);
             return ['class' => '', 'field' => ''];
         }
+
         foreach ($parts as $i => $part) {
 
             if ($i === count($parts) - 1) {
-                return ['class' => get_class($lastObj), 'field' => $part];
+                return ['class' => $lastObj::class, 'field' => $part];
             }
+
             $newObject = $lastObj->$part();
             if ($newObject) {
                 $lastObj = $newObject;
             }
         }
-        return ['class' => get_class($lastObj), 'field' => end($parts)];
+
+        return ['class' => $lastObj::class, 'field' => end($parts)];
     }
 
     private function snakeToCamel(string $snake): string
@@ -592,8 +650,10 @@ class ClassAndFieldInfo implements Flushable
         foreach ($parts as $part) {
             $camel .= ucfirst($part);
         }
+
         return $camel;
     }
+
     private function isAssoc(array $arr): bool
     {
         return array_keys($arr) !== range(0, count($arr) - 1);
@@ -605,6 +665,7 @@ class ClassAndFieldInfo implements Flushable
             // one or both assoc: keep keys, latter overrides
             return array_replace($a, $b);
         }
+
         // both non-assoc: numeric merge
         return array_unique(array_merge($a, $b));
     }
@@ -624,6 +685,7 @@ class ClassAndFieldInfo implements Flushable
             $value = unserialize($cache->get($key));
             return $value;
         }
+
         return null;
     }
 
@@ -661,6 +723,6 @@ class ClassAndFieldInfo implements Flushable
 
     protected function alphaNumeric($string): string
     {
-        return preg_replace('/[^a-zA-Z0-9]/', '-', $string);
+        return preg_replace('/[^a-zA-Z0-9]/', '-', (string) $string);
     }
 }
