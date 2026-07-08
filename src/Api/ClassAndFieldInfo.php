@@ -445,7 +445,7 @@ class ClassAndFieldInfo implements Flushable
                             continue;
                         }
 
-                        if ($isRelField === true && !isset($classList[$typeNameOrClassNameWithoutDot])) {
+                        if ($isRelField && !isset($classList[$typeNameOrClassNameWithoutDot])) {
                             // echo 'Skipping relation field ' . $name . ' of type ' . $typeNameOrClassNameWithoutDot . ' as class does not exist.' . PHP_EOL;
                             continue;
                         }
